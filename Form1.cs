@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -24,13 +24,36 @@ namespace TriHelper
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            List<string> f = Directory.GetFiles(Environment.GetEnvironmentVariable("TRICACHE")).ToList();
-            List<string> f2 = Directory.GetFiles(Environment.GetEnvironmentVariable("TRICACHE_PREFETCH")).Where(x => x.Contains(".json")).ToList();
-            foreach (var item in f2)
+
+            string fn = ".tricache_index";
+            if (File.Exists(fn))
             {
-                tracks.Add(JsonSerializer.Deserialize<Track>(File.ReadAllText(item)));
+                var ndex = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(File.ReadAllText(fn));
+
+                tracks = ndex["tracks"].Select(x=>JsonSerializer.Deserialize<Track>(x)).ToList();
+                tracksNames = ndex["tNames"];
+                Console.WriteLine($"Read {tracks.Count()} tracks from index");
+                Console.WriteLine(tracksNames[0]);
             }
-            tracksNames = tracks.Select(x => $"{string.Join(", ", x.artists.Select(y => y.name))} - {x.title} - {x.album} - {x.id}").ToList();
+            else
+            {
+                List<string> f = Directory.GetFiles(Environment.GetEnvironmentVariable("TRICACHE")).ToList();
+                List<string> f2 = Directory.GetFiles(Environment.GetEnvironmentVariable("TRICACHE_PREFETCH")).Where(x => x.Contains(".json")).ToList();
+
+                foreach (var item in f2)
+                {
+                    tracks.Add(JsonSerializer.Deserialize<Track>(File.ReadAllText(item)));
+                }
+                tracksNames = tracks.Select(x => $"{string.Join(", ", x.artists.Select(y => y.name))} - {x.title} - {x.album} - {x.id}").ToList();
+                Dictionary<string, List<string>> ndex = new Dictionary<string, List<string>>()
+                {
+                    {"tracks", tracks.Select(x=>JsonSerializer.Serialize(x)).ToList() },
+                    {"tNames", tracksNames }
+                };
+                File.WriteAllText(fn, JsonSerializer.Serialize(ndex));
+
+            }
+            
             RenderT(tracksNames);
         }
         private void RenderT(List<string> trackNames)
@@ -38,6 +61,7 @@ namespace TriHelper
             trackNames.Sort();
             listBox1.Items.Clear();
             trackNames.ForEach(x => listBox1.Items.Add(x));
+            Console.WriteLine($"Renderring {trackNames.Count()}");
         }
 
         private void textBox1_TextChanged(object sender, EventArgs e)
@@ -121,6 +145,25 @@ namespace TriHelper
         private void listBox1_DoubleClick(object sender, EventArgs e)
         {
             button3_Click(sender, e);
+        }
+
+        private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        } 
+
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+            RenderT(checkBox1.Checked
+            ? tracksNames
+        .GroupBy(name => {
+            int lastDash = name.LastIndexOf('-');
+            return lastDash == -1 ? name : name.Substring(0, lastDash);
+        })
+        .Where(g => g.Count() >= 2)
+        .SelectMany(g => g)
+        .ToList()
+    : tracksNames);
         }
     }
     public class Artist
